@@ -10,12 +10,15 @@ interface Clipping {
   date: string;
   date_display: string;
   content: string;
+  paired_note?: string;
 }
 
 interface ParseResult {
   books: string[];
   clippings: Clipping[];
 }
+
+type SortMode = "date-desc" | "date-asc" | "page-asc" | "page-desc";
 
 function App() {
   const [books, setBooks] = useState<string[]>([]);
@@ -25,6 +28,12 @@ function App() {
   const [dateTo, setDateTo] = useState("");
   const [searchText, setSearchText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // New: type filter & sort
+  const [showHighlights, setShowHighlights] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [showBookmarks, setShowBookmarks] = useState(true);
+  const [sortMode, setSortMode] = useState<SortMode>("date-desc");
 
   const openFile = async () => {
     setIsLoading(true);
@@ -46,21 +55,46 @@ function App() {
   };
 
   const filtered = useMemo(() => {
-    return clippings.filter((c) => {
+    let result = clippings.filter((c) => {
       if (selectedBook && c.book_title !== selectedBook) return false;
       if (dateFrom && c.date < dateFrom) return false;
       if (dateTo && c.date > dateTo + "T23:59:59") return false;
+
+      // Type filter
+      if (c.clipping_type === "Highlight" && !showHighlights) return false;
+      if (c.clipping_type === "Note" && !showNotes) return false;
+      if (c.clipping_type === "Bookmark" && !showBookmarks) return false;
+
       if (searchText) {
         const q = searchText.toLowerCase();
         if (
           !c.content.toLowerCase().includes(q) &&
-          !c.book_title.toLowerCase().includes(q)
+          !c.book_title.toLowerCase().includes(q) &&
+          !(c.paired_note ?? "").toLowerCase().includes(q)
         )
           return false;
       }
       return true;
     });
-  }, [clippings, selectedBook, dateFrom, dateTo, searchText]);
+
+    // Sorting
+    result.sort((a, b) => {
+      switch (sortMode) {
+        case "date-asc":
+          return a.date.localeCompare(b.date);
+        case "date-desc":
+          return b.date.localeCompare(a.date);
+        case "page-asc":
+          return (a.page ?? 0) - (b.page ?? 0);
+        case "page-desc":
+          return (b.page ?? 0) - (a.page ?? 0);
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [clippings, selectedBook, dateFrom, dateTo, searchText, showHighlights, showNotes, showBookmarks, sortMode]);
 
   const bookCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -69,6 +103,21 @@ function App() {
     }
     return counts;
   }, [clippings]);
+
+  // Stats for the type filter badges
+  const typeCounts = useMemo(() => {
+    const base = clippings.filter((c) => {
+      if (selectedBook && c.book_title !== selectedBook) return false;
+      if (dateFrom && c.date < dateFrom) return false;
+      if (dateTo && c.date > dateTo + "T23:59:59") return false;
+      return true;
+    });
+    return {
+      highlights: base.filter((c) => c.clipping_type === "Highlight").length,
+      notes: base.filter((c) => c.clipping_type === "Note").length,
+      bookmarks: base.filter((c) => c.clipping_type === "Bookmark").length,
+    };
+  }, [clippings, selectedBook, dateFrom, dateTo]);
 
   const exportClippings = async (format: string) => {
     try {
@@ -156,6 +205,50 @@ function App() {
                 className="filter-input"
               />
             </div>
+
+            {/* Type filter */}
+            <div className="filter-section">
+              <h3>Typ</h3>
+              <div className="type-filters">
+                <button
+                  className={`type-toggle highlight ${showHighlights ? "active" : ""}`}
+                  onClick={() => setShowHighlights(!showHighlights)}
+                >
+                  Markierungen
+                  <span className="type-badge">{typeCounts.highlights}</span>
+                </button>
+                <button
+                  className={`type-toggle note ${showNotes ? "active" : ""}`}
+                  onClick={() => setShowNotes(!showNotes)}
+                >
+                  Notizen
+                  <span className="type-badge">{typeCounts.notes}</span>
+                </button>
+                <button
+                  className={`type-toggle bookmark ${showBookmarks ? "active" : ""}`}
+                  onClick={() => setShowBookmarks(!showBookmarks)}
+                >
+                  Lesezeichen
+                  <span className="type-badge">{typeCounts.bookmarks}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sort */}
+            <div className="filter-section">
+              <h3>Sortierung</h3>
+              <select
+                className="filter-input"
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+              >
+                <option value="date-desc">Datum (neueste zuerst)</option>
+                <option value="date-asc">Datum (älteste zuerst)</option>
+                <option value="page-asc">Seite (aufsteigend)</option>
+                <option value="page-desc">Seite (absteigend)</option>
+              </select>
+            </div>
+
             <div className="filter-section">
               <h3>Zeitraum</h3>
               <label>
@@ -217,31 +310,45 @@ function App() {
               </span>
             </div>
             <div className="clippings-list">
-              {filtered.map((c, i) => (
-                <div key={i} className={`clipping-card ${typeIcon(c.clipping_type)}`}>
-                  <div className="clipping-meta">
-                    <span className={`clipping-type ${c.clipping_type.toLowerCase()}`}>
-                      {typeLabel(c.clipping_type)}
-                    </span>
-                    <span className="clipping-location">
-                      Seite {c.page ?? "?"} | Pos. {c.position}
-                    </span>
-                    <span className="clipping-date">{c.date_display}</span>
-                  </div>
-                  {!selectedBook && (
-                    <div className="clipping-book">
-                      {c.book_title} — <em>{c.author}</em>
-                    </div>
-                  )}
-                  {c.content && (
-                    <div
-                      className={`clipping-content ${c.clipping_type === "Note" ? "note-content" : ""}`}
-                    >
-                      {c.content}
-                    </div>
-                  )}
+              {filtered.length === 0 ? (
+                <div className="no-results">
+                  <p>Keine Ergebnisse für die aktiven Filter.</p>
+                  <p className="no-results-hint">Passe die Filter in der Seitenleiste an.</p>
                 </div>
-              ))}
+              ) : (
+                filtered.map((c, i) => (
+                  <div key={i} className={`clipping-card ${typeIcon(c.clipping_type)}`}>
+                    <div className="clipping-meta">
+                      <span className={`clipping-type ${c.clipping_type.toLowerCase()}`}>
+                        {typeLabel(c.clipping_type)}
+                      </span>
+                      <span className="clipping-location">
+                        Seite {c.page ?? "?"} | Pos. {c.position}
+                      </span>
+                      <span className="clipping-date">{c.date_display}</span>
+                    </div>
+                    {!selectedBook && (
+                      <div className="clipping-book">
+                        {c.book_title} — <em>{c.author}</em>
+                      </div>
+                    )}
+                    {c.content && (
+                      <div
+                        className={`clipping-content ${c.clipping_type === "Note" ? "note-content" : ""}`}
+                      >
+                        {c.content}
+                      </div>
+                    )}
+                    {/* Paired note shown directly under the highlight */}
+                    {c.paired_note && (
+                      <div className="paired-note">
+                        <span className="paired-note-label">Notiz:</span>
+                        {c.paired_note}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </main>
         </div>

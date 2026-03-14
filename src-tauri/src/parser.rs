@@ -19,6 +19,8 @@ pub struct Clipping {
     pub date: String,       // ISO format for filtering
     pub date_display: String, // original German date for display
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paired_note: Option<String>, // Note content paired to a Highlight
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -96,7 +98,57 @@ pub fn parse_clippings(text: &str) -> ParseResult {
             date: date_iso,
             date_display: date_raw,
             content,
+            paired_note: None,
         });
+    }
+
+    // Pair notes with highlights at the same position in the same book.
+    // Kindle notes reference the end position of the highlighted range,
+    // e.g. highlight at pos 861-863, note at pos 863.
+    let mut paired_note_indices: HashSet<usize> = HashSet::new();
+
+    // First pass: find note → highlight pairs
+    for (ni, note) in clippings.iter().enumerate() {
+        if note.clipping_type != ClippingType::Note {
+            continue;
+        }
+        for (_hi, highlight) in clippings.iter().enumerate() {
+            if highlight.clipping_type != ClippingType::Highlight
+                || highlight.book_title != note.book_title
+            {
+                continue;
+            }
+            if position_end_matches(&highlight.position, &note.position) {
+                paired_note_indices.insert(ni);
+                break;
+            }
+        }
+    }
+
+    // Second pass: attach note content to the matching highlight
+    let paired_notes: Vec<(String, String, String)> = paired_note_indices
+        .iter()
+        .map(|&i| {
+            let n = &clippings[i];
+            (n.book_title.clone(), n.position.clone(), n.content.clone())
+        })
+        .collect();
+
+    for (book, pos, content) in &paired_notes {
+        if let Some(highlight) = clippings.iter_mut().find(|c| {
+            c.clipping_type == ClippingType::Highlight
+                && &c.book_title == book
+                && position_end_matches(&c.position, pos)
+        }) {
+            highlight.paired_note = Some(content.clone());
+        }
+    }
+
+    // Remove notes that were successfully paired (iterate in reverse to keep indices valid)
+    let mut indices: Vec<usize> = paired_note_indices.into_iter().collect();
+    indices.sort_unstable_by(|a, b| b.cmp(a));
+    for i in indices {
+        clippings.remove(i);
     }
 
     let mut books: Vec<String> = clippings
@@ -122,6 +174,25 @@ fn parse_title_author(line: &str) -> (String, String) {
     } else {
         (line.to_string(), String::new())
     }
+}
+
+/// Check if a highlight's position range ends at the note's position.
+/// e.g. highlight "861-863" matches note "863", or exact match "863" == "863".
+fn position_end_matches(highlight_pos: &str, note_pos: &str) -> bool {
+    let note_pos = note_pos.trim();
+    let highlight_pos = highlight_pos.trim();
+
+    // Exact match
+    if highlight_pos == note_pos {
+        return true;
+    }
+
+    // Range match: "861-863" ends with "863"
+    if let Some((_start, end)) = highlight_pos.split_once('-') {
+        return end.trim() == note_pos;
+    }
+
+    false
 }
 
 fn parse_german_date(raw: &str) -> String {
