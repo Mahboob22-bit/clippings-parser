@@ -27,6 +27,7 @@ pub struct Clipping {
 pub struct ParseResult {
     pub books: Vec<String>,
     pub clippings: Vec<Clipping>,
+    pub file_path: String,
 }
 
 pub fn parse_clippings(text: &str) -> ParseResult {
@@ -159,7 +160,7 @@ pub fn parse_clippings(text: &str) -> ParseResult {
         .collect();
     books.sort();
 
-    ParseResult { books, clippings }
+    ParseResult { books, clippings, file_path: String::new() }
 }
 
 fn parse_title_author(line: &str) -> (String, String) {
@@ -222,6 +223,69 @@ fn parse_german_date(raw: &str) -> String {
     } else {
         raw.to_string()
     }
+}
+
+/// Reconstructs the Kindle clippings format from structured data.
+/// Paired notes are written as separate entries to keep the file Kindle-compatible.
+pub fn clippings_to_kindle_format(clippings: &[Clipping]) -> String {
+    let mut output = String::new();
+
+    for c in clippings {
+        let title_line = if c.author.is_empty() {
+            c.book_title.clone()
+        } else {
+            format!("{} ({})", c.book_title, c.author)
+        };
+
+        let type_str = match c.clipping_type {
+            ClippingType::Highlight => "Deine Markierung",
+            ClippingType::Note => "Deine Notiz",
+            ClippingType::Bookmark => "Dein Lesezeichen",
+        };
+
+        let page_str = c.page.map(|p| p.to_string()).unwrap_or_default();
+        let meta_line = format!(
+            "- {} auf Seite {} | bei Position {} | Hinzugefügt am {}",
+            type_str, page_str, c.position, c.date_display
+        );
+
+        // Write the main clipping entry
+        output.push_str(&title_line);
+        output.push('\n');
+        output.push_str(&meta_line);
+        output.push('\n');
+        output.push('\n'); // empty line before content
+        if !c.content.is_empty() {
+            output.push_str(&c.content);
+            output.push('\n');
+        }
+        output.push_str("==========\n");
+
+        // If this highlight has a paired note, write it as a separate entry
+        if let Some(ref note_content) = c.paired_note {
+            let note_pos = if let Some((_start, end)) = c.position.split_once('-') {
+                end.trim().to_string()
+            } else {
+                c.position.clone()
+            };
+
+            let note_meta = format!(
+                "- Deine Notiz auf Seite {} | bei Position {} | Hinzugefügt am {}",
+                page_str, note_pos, c.date_display
+            );
+
+            output.push_str(&title_line);
+            output.push('\n');
+            output.push_str(&note_meta);
+            output.push('\n');
+            output.push('\n');
+            output.push_str(note_content);
+            output.push('\n');
+            output.push_str("==========\n");
+        }
+    }
+
+    output
 }
 
 pub fn export_as_text(clippings: &[Clipping]) -> String {

@@ -46,10 +46,28 @@ body {
   flex-shrink: 0;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .header h1 {
   font-size: 18px;
   font-weight: 600;
   color: var(--accent);
+}
+
+.save-indicator {
+  font-size: 11px;
+  color: var(--accent);
+  opacity: 0.8;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 .header-actions {
@@ -96,6 +114,20 @@ body {
 
 .btn-secondary:hover {
   background: var(--border);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: #c0392b;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #e74c3c;
 }
 
 .btn-large {
@@ -337,6 +369,163 @@ body {
   background: var(--note-bg);
   border-left: 2px solid var(--note-border);
   font-style: italic;
+}
+
+/* Card action buttons */
+.card-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.clipping-card:hover .card-actions {
+  opacity: 1;
+}
+
+.action-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  transition: all 0.1s;
+  line-height: 1;
+}
+
+.action-btn.small {
+  font-size: 11px;
+  padding: 1px 4px;
+}
+
+.action-btn.edit-btn {
+  color: var(--accent);
+}
+
+.action-btn.edit-btn:hover {
+  background: rgba(108, 126, 225, 0.15);
+  border-color: var(--accent);
+}
+
+.action-btn.add-note-btn {
+  color: #6aaf6a;
+  font-size: 12px;
+}
+
+.action-btn.add-note-btn:hover {
+  background: rgba(74, 124, 74, 0.15);
+  border-color: var(--note-border);
+}
+
+.action-btn.delete-btn {
+  color: var(--text-muted);
+}
+
+.action-btn.delete-btn:hover {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+  border-color: #c0392b;
+}
+
+/* Edit area */
+.edit-area {
+  margin-top: 8px;
+}
+
+.edit-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+
+.edit-textarea:focus {
+  box-shadow: 0 0 0 2px rgba(108, 126, 225, 0.2);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.paired-note-edit {
+  background: var(--note-bg);
+  border-left: 3px solid var(--note-border);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+}
+
+.paired-note-edit .edit-textarea {
+  border-color: var(--note-border);
+}
+
+/* Paired note header with inline actions */
+.paired-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.paired-note-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.paired-note:hover .paired-note-actions {
+  opacity: 1;
+}
+
+/* Delete confirmation overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.confirm-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+}
+
+.confirm-dialog p {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.confirm-detail {
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  font-style: italic;
+  margin-bottom: 16px !important;
+  word-break: break-word;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* Paired note (shown under highlight) */

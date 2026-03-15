@@ -1,6 +1,9 @@
 mod parser;
 
-use parser::{export_as_markdown, export_as_text, parse_clippings, Clipping, ParseResult};
+use parser::{
+    clippings_to_kindle_format, export_as_markdown, export_as_text, parse_clippings, Clipping,
+    ParseResult,
+};
 use std::fs;
 use tauri_plugin_dialog::DialogExt;
 
@@ -25,7 +28,18 @@ async fn open_clippings_file(app: tauri::AppHandle) -> Result<ParseResult, Strin
     // Remove BOM if present
     let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
 
-    Ok(parse_clippings(content))
+    let mut result = parse_clippings(content);
+    result.file_path = path_buf.to_string_lossy().to_string();
+
+    Ok(result)
+}
+
+#[tauri::command]
+async fn save_clippings_file(file_path: String, clippings: Vec<Clipping>) -> Result<(), String> {
+    let output = clippings_to_kindle_format(&clippings);
+    fs::write(&file_path, output.as_bytes())
+        .map_err(|e| format!("Fehler beim Speichern: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -69,7 +83,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![open_clippings_file, export_clippings])
+        .invoke_handler(tauri::generate_handler![
+            open_clippings_file,
+            save_clippings_file,
+            export_clippings
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
